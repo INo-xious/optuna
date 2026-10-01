@@ -65,7 +65,9 @@ def _check_values_are_feasible(study: Study, values: Sequence[float]) -> str | N
         except (ValueError, TypeError):
             errors.append(f"The value {repr(v)} could not be cast to float")
             continue
-        if math.isnan(v):
+        if isinstance(v, str):
+            errors.append(f"The value {repr(v)} is not acceptable")
+        elif math.isnan(v):
             errors.append(f"The value {v} is not acceptable")
     if errors:
         return "; ".join(errors)
@@ -116,7 +118,7 @@ def _tell_with_warning(
     values: Sequence[float] | None
     if value_or_values is None:
         values = None
-    elif isinstance(value_or_values, Sequence):
+    elif isinstance(value_or_values, Sequence) and not isinstance(value_or_values, str):
         values = value_or_values
     else:
         values = [value_or_values]

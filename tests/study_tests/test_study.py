@@ -5,7 +5,9 @@ from concurrent.futures import as_completed
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import ThreadPoolExecutor
 import copy
+from decimal import Decimal
 import multiprocessing
+from numbers import Real
 import pickle
 import threading
 import time
@@ -1518,6 +1520,48 @@ def test_tell_multi_objective() -> None:
     study = create_study(directions=["minimize", "maximize"])
     study.tell(study.ask(), [1.0, 2.0])
     assert len(study.trials) == 1
+
+
+@pytest.mark.parametrize(
+    "values,n_objectives",
+    [("2.2", 1), (["2.2"], 1), ([1.0, "2.2"], 2), (["1.0", "2.2"], 2), ("12", 2)],
+)
+def test_tell_numeric_strings_automatically_fail(values: Any, n_objectives: int) -> None:
+    study = create_study(directions=["minimize"] * n_objectives)
+    trial = study.ask()
+
+    with pytest.warns(UserWarning):
+        study.tell(trial, values)
+
+    assert study.trials[0].state == TrialState.FAIL
+    assert study.trials[0].values is None
+
+
+@pytest.mark.parametrize(
+    "values,n_objectives",
+    [("2.2", 1), (["2.2"], 1), ([1.0, "2.2"], 2), (["1.0", "2.2"], 2), ("12", 2)],
+)
+def test_tell_numeric_strings_complete_invalid(values: Any, n_objectives: int) -> None:
+    study = create_study(directions=["minimize"] * n_objectives)
+    trial = study.ask()
+
+    with pytest.raises(ValueError):
+        study.tell(trial, values, state=TrialState.COMPLETE)
+
+    assert study.trials[0].state == TrialState.RUNNING
+    assert study.trials[0].values is None
+
+
+@pytest.mark.parametrize("state", [None, TrialState.COMPLETE])
+def test_tell_float_castable_non_real(state: TrialState | None) -> None:
+    value = Decimal("2.2")
+    assert not isinstance(value, Real)
+    study = create_study()
+
+    study.tell(study.ask(), value, state=state)  # type: ignore[arg-type]
+
+    assert study.trials[0].state == TrialState.COMPLETE
+    assert study.trials[0].value == 2.2
 
 
 def test_tell_multi_objective_automatically_fail() -> None:
